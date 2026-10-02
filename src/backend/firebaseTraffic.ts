@@ -55,12 +55,15 @@ export async function persistFirebaseProcessed(
   file: File,
   processed: ProcessedDetection,
   uploadedAt: string,
+  evidenceKey?: string,
 ): Promise<ProcessedDetection> {
   const client = requireFirebaseUser();
   if (!client) return processed;
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "source-video";
   const videoPath = `traffic-videos/${fingerprint}/${safeName}`;
-  const evidencePath = `traffic-evidence/${fingerprint}.jpg`;
+  const evidencePath = evidenceKey
+    ? `traffic-evidence/${fingerprint}/${evidenceKey}.jpg`
+    : `traffic-evidence/${fingerprint}.jpg`;
   const videoUpload = await uploadBytes(ref(client.storage, videoPath), file, { contentType: file.type });
   const previewBlob = await fetch(processed.evidence.previewDataUrl ?? "").then((response) => {
     if (!response.ok) throw new Error("Could not read the captured evidence image.");

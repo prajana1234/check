@@ -4,6 +4,8 @@ import { TrafficProcessor } from "./trafficProcessor";
 import { trafficStore } from "./trafficStore";
 import { findFirebaseProcessed, fingerprintVideo, persistFirebaseProcessed } from "./firebaseTraffic";
 import { getFirebaseClient } from "./firebaseClient";
+import { analyzeUploadedVideo, type VisionIncidentEvent } from "@/services/visionService";
+import type { Severity, ViolationType } from "@/types";
 
 function videoIdFromName(name: string): string {
   return name.replace(/\.[^.]+$/, "").trim().replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
@@ -118,9 +120,84 @@ function isBlankEvidencePreview(preview: string | undefined): Promise<boolean> {
   });
 }
 
-export async function ingestVideo(file: File): Promise<{ processed?: ProcessedDetection; duplicate: boolean }> {
+export type VideoIngestionOptions = { cameraId?: string; location?: string };
+
+function severityForEvent(event: VisionIncidentEvent): Severity {
+  if (event.severity) return event.severity;
+  if (event.violation === "Signal Jumping") return "critical";
+  if (event.violation === "Wrong Lane" || event.violation === "Triple Riding") return "high";
+  return "medium";
+}
+
+async function ingestWithInference(
+  file: File,
+  videoId: string,
+  options: VideoIngestionOptions,
+): Promise<{ processed?: ProcessedDetection; processedList: ProcessedDetection[]; duplicate: false }> {
+  const cameraId = options.cameraId ?? "CAM-001";
+  const location = options.location?.trim() || "Uploaded video";
+  const analysis = await analyzeUploadedVideo(file, cameraId);
+  await trafficStore.hydrate();
+
+  const uploadedAt = new Date().toISOString();
+  const firebaseEnabled = Boolean(getFirebaseClient());
+  const fingerprint = firebaseEnabled ? await fingerprintVideo(file) : undefined;
+  const processedList: ProcessedDetection[] = [];
+
+  for (const [index, event] of analysis.incidents.entries()) {
+    const sequence = trafficStore.nextSequenceNumbers();
+    let processed = new TrafficProcessor(sequence.incident - 1, sequence.evidence - 1).process(
+      {
+        videoId,
+        violation: event.violation as ViolationType,
+        timestamp: event.timestamp,
+        cameraId: event.camera_id || cameraId,
+        severity: severityForEvent(event),
+        vehicleId: event.vehicle_id || "UNKNOWN",
+        licensePlate: event.license_plate || "UNKNOWN",
+        speed: event.speed_kmh,
+        speedLimit: event.speed_limit_kmh,
+        confidence: event.confidence,
+        details: JSON.stringify({
+          ...event.details,
+          object_class: event.vehicle_class,
+          tracking_id: event.tracking_id,
+          model_confidence: event.confidence,
+          license_plate_confidence: event.license_plate_confidence,
+          plate_detection_confidence: event.plate_detection_confidence,
+        }),
+        location,
+        evidencePreview: event.evidence_preview,
+        evidenceSuffix: `${event.frame_index}-${event.tracking_id}-${index}`,
+        demoId: null,
+        sourceVideoName: file.name,
+      },
+      uploadedAt,
+    );
+
+    if (fingerprint) {
+      processed = await persistFirebaseProcessed(
+        fingerprint,
+        file,
+        processed,
+        uploadedAt,
+        processed.evidence.id,
+      );
+    }
+    processedList.push(await trafficStore.add(processed));
+  }
+
+  await trafficStore.saveVideo(file.name, file, uploadedAt);
+  return { processed: processedList[0], processedList, duplicate: false };
+}
+
+export async function ingestVideo(
+  file: File,
+  options: VideoIngestionOptions = {},
+): Promise<{ processed?: ProcessedDetection; processedList?: ProcessedDetection[]; duplicate: boolean }> {
   const rule = findDemoVideoByName(file.name);
   const videoId = rule?.id ?? videoIdFromName(file.name);
+  if (!rule) return ingestWithInference(file, videoId, options);
   const cloudEnabled = Boolean(getFirebaseClient());
   const fingerprint = cloudEnabled ? await fingerprintVideo(file) : undefined;
   if (fingerprint) {

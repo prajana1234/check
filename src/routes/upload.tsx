@@ -21,6 +21,18 @@ type UploadItem = {
   previewUrl: string;
 };
 
+function getUploadContext(camera: string, title: string): { cameraId: string; location: string } {
+  const value = camera.trim() || title.trim();
+  const cameraMatch = value.match(/CAM-\d+/i)?.[0].toUpperCase();
+  const location = cameraMatch
+    ? value.replace(new RegExp(cameraMatch, "i"), "").replace(/^[\s·,.-]+/, "").trim()
+    : value;
+  return {
+    cameraId: cameraMatch ?? "CAM-001",
+    location: location || "Uploaded video",
+  };
+}
+
 export const Route = createFileRoute("/upload")({
   head: () => ({
     meta: [
@@ -73,7 +85,8 @@ function UploadPage() {
     try {
       const videos = items.filter((item) => !acceptedImageTypes.includes(item.file.type));
       const images = items.filter((item) => acceptedImageTypes.includes(item.file.type));
-      for (const item of videos) await ingestVideo(item.file);
+      const context = getUploadContext(camera, title);
+      for (const item of videos) await ingestVideo(item.file, context);
       for (const item of images) await attachEvidenceImage(item.file);
     } catch (error) {
       toast.error("Video could not be processed", { description: error instanceof Error ? error.message : "Try another video file." });

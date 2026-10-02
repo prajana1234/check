@@ -12,6 +12,12 @@ export type VideoDetection = {
   status?: IncidentStatus;
   evidencePreview?: string;
   sourceVideoName?: string;
+  demoId?: string | null;
+  speed?: number | null;
+  speedLimit?: number | null;
+  confidence?: number;
+  details?: string;
+  evidenceSuffix?: string;
 };
 
 export type ProcessedDetection = {
@@ -26,11 +32,12 @@ function normalizeTimestamp(timestamp: string): string {
     throw new Error(`Invalid video timestamp "${timestamp}". Use MM:SS or HH:MM:SS.`);
   }
 
-  return timestamp.length === 5 ? timestamp : timestamp.slice(-5);
+  return timestamp;
 }
 
-function evidenceFilename(videoId: string, timestamp: string): string {
-  return `${videoId}_${timestamp.replace(":", "-")}.jpg`;
+function evidenceFilename(videoId: string, timestamp: string, suffix?: string): string {
+  const safeSuffix = suffix ? `_${suffix.replace(/[^a-zA-Z0-9_-]/g, "_")}` : "";
+  return `${videoId}_${timestamp.replaceAll(":", "-")}${safeSuffix}.jpg`;
 }
 
 export class TrafficProcessor {
@@ -48,7 +55,8 @@ export class TrafficProcessor {
     const evidenceNumber = ++this.evidenceSequence;
     const incidentId = `INC-${String(incidentNumber).padStart(4, "0")}`;
     const evidenceId = `EVD-${String(evidenceNumber).padStart(6, "0")}`;
-    const evidencePath = `/evidence/${evidenceFilename(detection.videoId, timestamp)}`;
+    const filename = evidenceFilename(detection.videoId, timestamp, detection.evidenceSuffix);
+    const evidencePath = `/evidence/${filename}`;
 
     const evidence: Evidence = {
       id: evidenceId,
@@ -60,10 +68,12 @@ export class TrafficProcessor {
       licensePlate: detection.licensePlate ?? "UNKNOWN",
       capturedAt: detectedAt,
       previewKind: "video-frame",
-      filename: evidenceFilename(detection.videoId, timestamp),
+      filename,
       sourceVideoId: detection.videoId,
       path: evidencePath,
       previewDataUrl: detection.evidencePreview,
+      confidence: detection.confidence,
+      details: detection.details,
     };
 
     const incident: Incident = {
@@ -72,8 +82,8 @@ export class TrafficProcessor {
       violation: detection.violation,
       vehicleId: detection.vehicleId ?? "UNKNOWN",
       licensePlate: detection.licensePlate ?? "UNKNOWN",
-      speed: null,
-      speedLimit: null,
+      speed: detection.speed ?? null,
+      speedLimit: detection.speedLimit ?? null,
       videoTimestamp: timestamp,
       detectedAt,
       location: detection.location ?? "Unknown location",
@@ -82,9 +92,11 @@ export class TrafficProcessor {
       evidenceId,
       evidencePath,
       evidencePreview: detection.evidencePreview,
+      modelConfidence: detection.confidence,
+      detectionDetails: detection.details,
       sourceVideoName: detection.sourceVideoName,
       createdAt: detectedAt,
-      demoId: detection.videoId,
+      demoId: detection.demoId === undefined ? detection.videoId : detection.demoId,
     };
 
     return { incident, evidence };

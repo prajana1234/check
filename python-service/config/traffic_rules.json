@@ -1,0 +1,12 @@
+{
+  "analysis": {
+    "device": "cpu",
+    "frame_stride": 3,
+    "jpeg_quality": 88,
+    "confidence_threshold": 0.35,
+    "helmet_confidence_threshold": 0.35,
+    "plate_text_confidence_threshold": 0.6,
+    "speed_minimum_interval_seconds": 0.5
+  },
+  "cameras": {}
+}

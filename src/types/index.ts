@@ -14,6 +14,7 @@ export interface Incident {
   id: string; cameraId: string; violation: ViolationType; vehicleId: string;
   licensePlate: string; speed: number | null; speedLimit: number | null;
   videoTimestamp: string; detectedAt: string; location: string; severity: Severity;
+  modelConfidence?: number; detectionDetails?: string;
   status: IncidentStatus; evidenceId: string; evidencePath?: string; evidencePreview?: string; sourceVideoName?: string; sourceVideoPath?: string; createdAt?: string; isHidden?: boolean; demoId: string | null;
 }
 
@@ -26,6 +27,7 @@ export interface DemoVideo {
 export interface Evidence {
   id: string; incidentId: string; violation: ViolationType; cameraId: string;
   videoTimestamp: string; vehicleId: string; licensePlate: string; capturedAt: string;
+  confidence?: number; details?: string;
   previewKind: "simulated-placeholder" | "video-frame";
   filename?: string; sourceVideoId?: string; path?: string; previewDataUrl?: string; isHidden?: boolean;
 }

@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+python-service/.venv/
+python-service/**/__pycache__/
+python-service/**/*.py[cod]
 .output
 .vinxi
 .tanstack/**

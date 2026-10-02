@@ -1,0 +1,6 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+python-multipart>=0.0.20
+ultralytics>=8.4.170,<9
+lap>=0.5.12
+fast-alpr[onnx]>=0.4,<0.5
