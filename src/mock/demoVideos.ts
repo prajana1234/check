@@ -70,9 +70,24 @@ export const demoVideos: DemoVideo[] = [
     status: "available",
     severity: "high",
     vehicleId: "Bike",
-    licensePlate: "BJ17 TFK",
+    licensePlate: "Not Detected",
     location: "Uploaded video",
     evidenceId: "EVD-0001001",
+  },
+
+  {
+    id: "011100",
+    name: "no_helmet1",
+    violation: "Helmetless Riding",
+    triggerTimestamp: "00:01",
+    cameraId: "CAM-001",
+    evidenceStatus: "ready",
+    status: "available",
+    severity: "medium",
+    vehicleId: "Bike",
+    licensePlate: "BA Pradesh 02 048 PA 2762",
+    location: "Uploaded video",
+    evidenceId: "EVD-011100",
   },
 ];
 
@@ -81,13 +96,26 @@ function normalizeDemoName(name: string): string {
     .replace(/\.[^.]+$/, "")
     .toUpperCase()
     .match(/[A-Z]+|\d+/g)
+    ?.filter((part) => part !== "AND")
     ?.map((part) => (/^\d+$/.test(part) ? String(Number(part)) : part))
     .join("_") ?? "";
 }
 
 export function findDemoVideoByName(name: string): DemoVideo | undefined {
   const normalizedName = normalizeDemoName(name);
-  return demoVideos.find((video) =>
+  const exactMatch = demoVideos.find((video) =>
     [video.id, video.name].some((candidate) => normalizeDemoName(candidate) === normalizedName),
   );
+  if (exactMatch) return exactMatch;
+
+  const filenameParts = normalizedName.split("_").filter(Boolean);
+  return demoVideos.find((video) => {
+    const demoParts = normalizeDemoName(video.name).split("_").filter(Boolean);
+    return (
+      demoParts.length > 0 &&
+      filenameParts.some((_, index) =>
+        demoParts.every((part, offset) => filenameParts[index + offset] === part),
+      )
+    );
+  });
 }
